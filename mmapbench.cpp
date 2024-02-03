@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <vector>
 #include "tbb/enumerable_thread_specific.h"
+#include "user_level_mmap.h"
 
 using namespace std;
 
@@ -109,7 +110,7 @@ int main(int argc, char** argv) {
 
   uint64_t fileSize = 2ull * 1024 * 1024 * 1024 * 1024;
 
-  char* p = (char*)mmap(nullptr, fileSize, PROT_READ, MAP_SHARED, fd, 0);
+  char* p = (char*)ul_mmap(nullptr, fileSize, PROT_READ, MAP_SHARED, fd, 0);
   assert(p != MAP_FAILED);
 
   int hint = (argc > 4) ? atoi(argv[4]) : 0;
