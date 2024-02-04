@@ -4,10 +4,12 @@ library(Cairo)
 
 ## 100GB free RAM, Linux 5.11, swap off
 
-d0=read.csv('all.csv')
-d1=read.csv('rnd1.csv', col.names=c('time', 'readKB', 'c', 'd', 'e'), header=FALSE)
-d2=read.csv('seq1.csv', col.names=c('time', 'readKB', 'c', 'd', 'e'), header=FALSE)
-d3=read.csv('seq10.csv', col.names=c('time', 'readKB', 'c', 'd', 'e'), header=FALSE)
+#mmapbench.cpp
+d0=read.csv('mmapbench.csv')
+#ran1, fio O_DIRECT, pread, thread-100
+d1=read.csv('fio_rnd.csv', col.names=c('time', 'readKB', 'c', 'd', 'e'), header=FALSE)
+#seq1, fio O_DIRECT, libaio, thread-20
+d2=read.csv('fio_seq.csv', col.names=c('time', 'readKB', 'c', 'd', 'e'), header=FALSE)
 d=sqldf("
 select * from
 (select time, dev, seq, hint, threads,
@@ -16,15 +18,14 @@ select * from
         cast(tlb as float) / (time-lag(time) over (partition by dev, seq, hint, threads order by time)) tlbPerS,
         'mmap ' || (case hint when 0 then 'MADV_NORMAL' when 1 then 'MADV_RND' else 'MADV_SEQ' end) as mode
 from d0
-union all select round(time/1000.0)+0.5, '/blk/s2', 0, 0, 100, avg(readKB)/1024.0/1024, avg(readKB)/1024.0/1024, 0, 'fio O_DIRECT pread' from d1 group by round(time/1000.0)
-union all select round(time/1000.0)+0.5, '/blk/s2', 1, 0, 20, avg(readKB)/1024.0/1024, avg(readKB)/1024.0/1024, 0, 'fio O_DIRECT libaio' from d2 group by round(time/1000.0)
-union all select round(time/1000.0)+0.5, '/dev/md127', 1, 0, 20, avg(readKB)/1024.0/1024, avg(readKB)/1024.0/1024, 0, 'fio O_DIRECT libaio' from d3 group by round(time/1000.0)
+union all select round(time/1000.0)+0.5, './test_file', 0, 0, 100, avg(readKB)/1024.0/1024, avg(readKB)/1024.0/1024, 0, 'fio O_DIRECT pread' from d1 group by round(time/1000.0)
+union all select round(time/1000.0)+0.5, './test_file', 1, 0, 20, avg(readKB)/1024.0/1024, avg(readKB)/1024.0/1024, 0, 'fio O_DIRECT libaio' from d2 group by round(time/1000.0)
 )
 where time > 2
 ")
 
 CairoPDF('random_bw.pdf', 5.5, 2)
-ggplot(sqldf("select * from d where dev = '/blk/s2' and seq = 0"), aes(time, workGBPerS*(1024*1024*1024)/4096/1e6, color=mode, shape=mode)) +
+ggplot(sqldf("select * from d where dev = './test_file' and seq = 0"), aes(time, workGBPerS*(1024*1024*1024)/4096/1e6, color=mode, shape=mode)) +
     geom_point() +
 ##    labs(title='random 4KB reads, 100 threads, 1 SSD') +
     scale_x_continuous('time [s]', limits = c(1,60)) +
@@ -37,7 +38,7 @@ ggplot(sqldf("select * from d where dev = '/blk/s2' and seq = 0"), aes(time, wor
 dev.off()
 
 CairoPDF('random_tlb.pdf', 5.5, 2)
-ggplot(sqldf("select * from d where dev = '/blk/s2' and seq = 0"), aes(time, tlbPerS/1e6, color=mode, shape=mode)) +
+ggplot(sqldf("select * from d where dev = './test_file' and seq = 0"), aes(time, tlbPerS/1e6, color=mode, shape=mode)) +
     geom_point() +
 ##    labs(title='random 4KB reads, 100 threads, 1 SSD') +
     scale_x_continuous('time [s]', limits = c(1,60)) +
@@ -50,21 +51,9 @@ ggplot(sqldf("select * from d where dev = '/blk/s2' and seq = 0"), aes(time, tlb
 dev.off()
 
 CairoPDF('seq_1ssd.pdf', 5.5, 2)
-ggplot(sqldf("select * from d where dev = '/blk/s2' and seq = 1"), aes(time, workGBPerS, color=mode, shape=mode)) +
+ggplot(sqldf("select * from d where dev = './test_file' and seq = 1"), aes(time, workGBPerS, color=mode, shape=mode)) +
     geom_point() +
 ##    labs(title='sequential, 20 threads, 1 SSD') +
-    scale_x_continuous('time [s]', limits = c(1,60)) +
-    scale_y_continuous('bandwidth [GB/s]') +
-    scale_color_brewer(palette="Set2") +
-    theme_bw() +
-    theme(legend.title = element_blank())
-dev.off()
-
-CairoPDF('seq_10ssd.pdf', 5.5, 2)
-ggplot(sqldf("select * from d where dev = '/dev/md127' and seq = 1"), aes(time, workGBPerS, color=mode, shape=mode)) +
-    geom_point() +
-##    labs(title='sequential, 20 threads, 10 SSDs') +
-    scale_x_continuous('time [s]', limits = c(1,60)) +
     scale_y_continuous('bandwidth [GB/s]') +
     scale_color_brewer(palette="Set2") +
     theme_bw() +

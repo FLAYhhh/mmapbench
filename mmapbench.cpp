@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
 
       if (seq) {
         while (true) {
-          uint64_t scanBlock = 128 * 1024 * 1024;
+          uint64_t scanBlock = 128 * 1024 * 1024; // 128MB
           uint64_t pos = (seqScanPos += scanBlock) % fileSize;
 
           for (uint64_t j = 0; j < scanBlock; j += 4096) {
